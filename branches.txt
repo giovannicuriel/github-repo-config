@@ -1,0 +1,42 @@
+
+
+
+
+Repository: iotagent-mosca
+Patterns:
+>>>> { pattern: 'master',
+  requiresApprovingReviews: true,
+  dismissesStaleReviews: false,
+  requiresStatusChecks: true,
+  isAdminEnforced: true,
+  requiredStatusCheckContexts: [],
+  requiresStrictStatusChecks: true,
+  requiredApprovingReviewCount: 1,
+  restrictsReviewDismissals: false }
+>>>> { pattern: 'release/*',
+  requiresApprovingReviews: true,
+  dismissesStaleReviews: true,
+  requiresStatusChecks: true,
+  isAdminEnforced: true,
+  requiredStatusCheckContexts: [ 'continuous-integration/travis-ci', 'CodeFactor', 'DeepScan' ],
+  requiresStrictStatusChecks: true,
+  requiredApprovingReviewCount: 1,
+  restrictsReviewDismissals: false }
+>>>> { pattern: 'feature/*',
+  requiresApprovingReviews: false,
+  dismissesStaleReviews: false,
+  requiresStatusChecks: true,
+  isAdminEnforced: false,
+  requiredStatusCheckContexts: [],
+  requiresStrictStatusChecks: false,
+  requiredApprovingReviewCount: null,
+  restrictsReviewDismissals: false }
+>>>> { pattern: 'development',
+  requiresApprovingReviews: true,
+  dismissesStaleReviews: true,
+  requiresStatusChecks: true,
+  isAdminEnforced: true,
+  requiredStatusCheckContexts: [ 'continuous-integration/travis-ci', 'CodeFactor', 'DeepScan' ],
+  requiresStrictStatusChecks: true,
+  requiredApprovingReviewCount: 1,
+  restrictsReviewDismissals: false }

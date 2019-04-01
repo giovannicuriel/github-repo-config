@@ -1,4 +1,6 @@
 import { default as axios, AxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
+import { queries } from "./GithubQueries";
+import { Operation } from "./github/BranchProtectionRule";
 import * as util from "util";
 
 interface IGraphQLNode<T> {
@@ -28,10 +30,6 @@ interface IRepository {
     branchProtectionRules: IGraphQLList<IBranchProtectionRule>;
 }
 
-// interface IBranchProtectionMapping {
-//     [repositoryId: string]: string[];
-// };
-
 const BRANCHES = JSON.parse(process.argv[2]);
 console.log(`BRANCHES: ${BRANCHES}`);
 console.log(`arguments: ${process.argv}`);
@@ -59,105 +57,30 @@ async function removeBranchProtectionRules(protectionRules: string[]) {
 }
 
 
-function createDefaultBranchProtectionRules(repositoryId: string): Promise<AxiosResponse>[] {
-    const promises: Promise<AxiosResponse>[] = [];
-    const masterQuery = { "query" : `mutation CreateBranchProt {
-        createBranchProtectionRule(input:{
-            repositoryId: "${repositoryId}",
-            pattern: "master",
-            requiresApprovingReviews: true,
-            requiredApprovingReviewCount: 2,
-            dismissesStaleReviews: true,
-            requiresCodeOwnerReviews: true,
-            restrictsReviewDismissals: true
-            requiresStatusChecks: true,
-            requiredStatusCheckContexts: [ "continuous-integration/travis-ci", "CodeFactor", "DeepScan" ],
-            requiresStrictStatusChecks: true,
-            isAdminEnforced: true,
-        }) {
-          clientMutationId
-        }
-    }`};
-    const releaseQuery = { "query" : `mutation CreateBranchProt {
-        createBranchProtectionRule(input:{
-            repositoryId: "${repositoryId}",
-            pattern: "release/*",
-            requiresApprovingReviews: true,
-            dismissesStaleReviews: true,
-            requiresCodeOwnerReviews: true,
-            requiresStatusChecks: true,
-            requiredStatusCheckContexts: [ "continuous-integration/travis-ci", "CodeFactor", "DeepScan" ],
-            requiresStrictStatusChecks: true,
-            requiredApprovingReviewCount: 1,
-        }) {
-            clientMutationId
-        }
-    }`};
-    const developmentQuery = { "query" : `mutation CreateBranchProt {
-        createBranchProtectionRule(input:{
-            repositoryId: "${repositoryId}",
-            pattern: "development",
-            requiresApprovingReviews: true,
-            dismissesStaleReviews: true,
-            requiresCodeOwnerReviews: true,
-            requiresStatusChecks: true,
-            requiredStatusCheckContexts: [ "continuous-integration/travis-ci", "CodeFactor", "DeepScan" ],
-            requiresStrictStatusChecks: true,
-            requiredApprovingReviewCount: 1,
-        }) {
-            clientMutationId
-        }
-    }`};
-    const featureQuery = { "query" : `mutation CreateBranchProt {
-        createBranchProtectionRule(input:{
-            repositoryId: "${repositoryId}",
-            pattern: "feature/*",
-            requiresApprovingReviews: true,
-            dismissesStaleReviews: true,
-            requiresStatusChecks: true,
-        }) {
-            clientMutationId
-        }
-    }`};
+function createBranchProtectionRule(repositoryId: string, branch: string): Promise<AxiosResponse> {
 
-    const bugfixQuery = { "query" : `mutation CreateBranchProt {
-        createBranchProtectionRule(input:{
-            repositoryId: "${repositoryId}",
-            pattern: "bugfix/*",
-            requiresApprovingReviews: true,
-            dismissesStaleReviews: true,
-            requiresStatusChecks: true,
-        }) {
-            clientMutationId
-        }
-    }`};
-
-    console.log(`${1 in BRANCHES}`);
-    console.log(`${util.inspect(BRANCHES)}`);
-
-    if (BRANCHES.includes("master")) {
-        console.log("Adding 'master' branch protection rule");
-        promises.push(axios.post("https://api.github.com/graphql", masterQuery, config));
+    if (queries.branchProtectionRules.hasOwnProperty(branch)) {
+        (queries.branchProtectionRules as any)[branch].repositoryId = repositoryId;
+        const protectionQuery = queries.branchProtectionRules.master.render(Operation.CREATE, `${branch}Protection`);
+        // if (BRANCHES.includes(branch)) {
+            console.log(`Adding '${branch}' branch protection rule`);
+            console.log(`Protection rule: ${util.inspect(protectionQuery)}`);
+            return axios.post("https://api.github.com/graphql", protectionQuery, config);
+        // }
     }
-    if (BRANCHES.includes("feature")) {
-        console.log("Adding 'feature' branch protection rule");
-        promises.push(axios.post("https://api.github.com/graphql", featureQuery, config));
-    }
-    if (BRANCHES.includes("development")) {
-        console.log("Adding 'development' branch protection rule");
-        promises.push(axios.post("https://api.github.com/graphql", developmentQuery, config));
-    }
-    if (BRANCHES.includes("release")) {
-        console.log("Adding 'release' branch protection rule");
-        promises.push(axios.post("https://api.github.com/graphql", releaseQuery, config));
-    }
-    if (BRANCHES.includes("bugfix")) {
-        console.log("Adding 'bugfix' branch protection rule");
-        promises.push(axios.post("https://api.github.com/graphql", bugfixQuery, config));
-    }
-    return promises;
+    return Promise.reject(`branch ${branch} is not registered`);
 }
 
+
+function createDefaultBranchProtectionRules(repositoryId: string) : Promise<AxiosResponse>[] {
+    return [
+        createBranchProtectionRule(repositoryId, "master"),
+        createBranchProtectionRule(repositoryId, "release"),
+        createBranchProtectionRule(repositoryId, "development"),
+        createBranchProtectionRule(repositoryId, "feature"),
+        createBranchProtectionRule(repositoryId, "bugfix"),
+    ];
+}
 
 
 async function readBranchProtectionRules() {
@@ -167,7 +90,7 @@ async function readBranchProtectionRules() {
             viewer {
                 name
                 organization(login: "dojot") {
-                    repositories(first: 65) {
+                    repositories(first: 70) {
                         totalCount
                         edges {
                             cursor
@@ -207,6 +130,7 @@ async function readBranchProtectionRules() {
             console.log(`Patterns:`);
             for (const pattern of repository.node.branchProtectionRules.edges) {
                 console.log(`>>>> ${util.inspect(pattern.node.pattern)}`);
+                // branchProtectionRuleIds.push(`${repository.node.name}: ${pattern.node.pattern}`);
                 branchProtectionRuleIds.push(pattern.node.id);
             }
         }
@@ -222,7 +146,7 @@ async function readRepositories() {
             viewer {
                 name
                 organization(login: "dojot") {
-                    repositories(first: 10) {
+                    repositories(first: 70) {
                         totalCount
                         edges {
                             cursor
@@ -256,7 +180,7 @@ function main() {
         console.log("Removing all branch protection rules");
         readBranchProtectionRules()
         .then((branchProtectionRules: string[]) => {
-            console.log(`Currently configured branch protection rules: ${branchProtectionRules}`);
+            console.log(`Currently configured branch protection rules: ${util.inspect(branchProtectionRules)}`);
             console.log(`Removing all branch protection rules...`);
             return removeBranchProtectionRules(branchProtectionRules);
         }).then(() => {
